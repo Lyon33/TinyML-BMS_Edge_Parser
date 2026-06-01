@@ -1,0 +1,25 @@
+# Build
+build/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Models & Data
+*.tflite
+*.pb
+data/raw/
