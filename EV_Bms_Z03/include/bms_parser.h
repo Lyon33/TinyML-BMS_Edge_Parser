@@ -28,6 +28,10 @@ public:
     // 新增：转换为JSON字符串（用于后续扩展）
     std::string toJson(const BatteryPack& pack);
 
+    // JSON 配置
+    bool loadProtocolConfig(const std::string& configPath);
+    std::string getVehicleInfo() const;
+
 private:
     std::unordered_map<uint32_t, std::function<void(BatteryPack&, float)>> customParsers;
 

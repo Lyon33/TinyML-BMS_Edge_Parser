@@ -24,7 +24,7 @@ public:
 private:
     std::mt19937 gen{std::random_device{}()};
     float current_soh = 57.0f;        // 默认模拟你的车当前SOH ≈57%
-    float base_capacity_kwh = 36.0f;  // 你实际充满一次36度电
+    /* float base_capacity_kwh = 36.0f;  // 你实际充满一次36度电 */
     int frame_count = 0;
 
     // 模拟电压波动
