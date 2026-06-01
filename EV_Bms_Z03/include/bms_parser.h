@@ -25,6 +25,9 @@ public:
     // 异常检测
     std::vector<std::string> detectFaults(const BatteryPack& pack);
 
+    // 新增：转换为JSON字符串（用于后续扩展）
+    std::string toJson(const BatteryPack& pack);
+
 private:
     std::unordered_map<uint32_t, std::function<void(BatteryPack&, float)>> customParsers;
 
