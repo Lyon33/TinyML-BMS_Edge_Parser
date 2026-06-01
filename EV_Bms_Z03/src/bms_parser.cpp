@@ -13,9 +13,29 @@
 #include <fstream>
 #include <algorithm>
 #include <iomanip>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <thread>
 
 BMSParser::BMSParser() {
     // 可以在这里注册一些默认处理规则
+}
+
+BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
+    BatteryPack processed = rawData;
+
+    validateData(processed);
+
+    auto faults = detectFaults(processed);
+    processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
+
+    // 基于实际容量计算续航
+    if (processed.soh > 0.0f) {
+        processed.estimated_range = 36.0f * (processed.soh / 100.0f) * 6.8f;
+    }
+
+    return processed;
 }
 
     // 增加了 JSON 加载（改进版）
@@ -25,52 +45,83 @@ bool BMSParser::loadProtocolConfig(const std::string& configPath) {
         std::cout << "警告：无法加载配置文件 " << configPath << std::endl;
         return false;
     }
-    // 后面会解析JSON（目前先占位）
-    std::cout << "✅ 已成功加载协议配置: " << configPath << std::endl;
-    std::cout << "车辆模型：广汽合创Z03 510Km版 （真实容量36 KWh）" << std::endl;
+
+    nlohmann::json j;
+    file >> j;
+
+    std::cout << "✅ 已成功加载配置协议: " << configPath << std::endl;
+    std::cout << "   车辆型号: " << j["vehicle_model"] << std::endl;
+    std::cout << "   电池容量: " << j["nominal_capacity_kwh"] << "kWh" << std::endl;
+    std::cout << "   标称续航里程: " << j["original_range_km"] << "km" << std::endl;
+    std::cout << "   现实续航里程: " << j["current_range_km"] << "km" << std::endl;
     return true;
 }
 
-BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
-    BatteryPack processed = rawData;
-    validateData(processed);
-
-    // 异常检测
-    auto faults = detectFaults(processed);
-    processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
-
-    // 更真实的续航计算（结合车子36kwh的实际容量）
-    if (processed.soh > 0) {
-        float health_factor = processed.soh / 100.0f;
-        processed.estimated_range = 36.0f * health_factor * 6.8f;  
-    }
-
-    return processed;
+std::string BMSParser::getVehicleInfo() const {
+        return "合创Z03 510km版 | 实际容量: 36kWh | SOH≈57%";
 }
 
+// ==================== 新增 UDP 接收模块 ====================
+static bool g_udp_running = false;
+static int g_udp_socket = -1;
+
+void BMSParser::startUdpReceiver(int port) {
+    g_udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (g_udp_socket < 0) {
+        std::cerr << "创建UDP Socket失败" << std::endl;
+        return;
+    }
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(g_udp_socket, (sockaddr*)&addr, sizeof(addr)) < 0) {
+        std::cerr << "UDP绑定端口失败: " << port << std::endl;
+        return;
+    }
+
+    g_udp_running = true;
+    std::cout << "✅ UDP接收器已启动，端口: " << port << "（等待外部数据...）" << std::endl;
+}
+
+
 void BMSParser::validateData(BatteryPack& pack) {
-    // 合理性校验
+    pack.faults.clear();
     if (pack.total_voltage < 200.0f || pack.total_voltage > 420.0f) {
         pack.faults.push_back("P0A00_Voltage_OutOfRange");
     }
+
     if (pack.max_temperature > 55.0f) {
         pack.faults.push_back("P0A1F_OverTemperature");
     }
-    if (pack.soc < 5.0f) {
+
+    if (pack.soc < 8.0f) {
         pack.faults.push_back("Low_SOC_Warning");
     }
 }
 
 std::vector<std::string> BMSParser::detectFaults(const BatteryPack& pack) {
-
     std::vector<std::string> faults;
     float voltage_diff = pack.max_cell_voltage - pack.min_cell_voltage;
     if (voltage_diff > 0.8f) {
         faults.push_back("P0A02_Cell_Voltage_Imbalance");
     }
+
     return faults;
 }
 
 void BMSParser::registerParser(uint32_t signalId, std::function<void(BatteryPack&, float)> handler) {
     customParsers[signalId] = handler;
+}
+
+// UDP 占位（暂时不实现完整逻辑）
+/* void BMSParser::startUdpReceiver(int port) { */
+/*     std::cout << "✅ UDP接收器启动 (端口 " << port << ") - 模拟模式" << std::endl; */
+/* } */
+
+void BMSParser::stopUdpReceiver(){
+    g_udp_running = false;
+    if (g_udp_socket >= 0) close(g_udp_socket);
 }

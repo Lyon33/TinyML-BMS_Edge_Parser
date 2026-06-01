@@ -32,6 +32,10 @@ public:
     bool loadProtocolConfig(const std::string& configPath);
     std::string getVehicleInfo() const;
 
+    // 新增：UDP接收
+    void startUdpReceiver(int port = 8888);
+    void stopUdpReceiver();
+
 private:
     std::unordered_map<uint32_t, std::function<void(BatteryPack&, float)>> customParsers;
 

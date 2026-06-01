@@ -25,3 +25,6 @@ target_link_libraries(bms_parser pthread)
 
 # 安装（可选）
 install(TARGETS bms_parser DESTINATION bin)
+
+message(STATUS "✅ EV BMS Parser 项目配置完成！")
+message(STATUS "   JSON库已包含 | UDP模块已支持")

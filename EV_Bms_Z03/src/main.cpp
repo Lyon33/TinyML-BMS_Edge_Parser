@@ -17,9 +17,14 @@ int main() {
     std::cout << "=== EV BMS Battery Data Parser 已启动 ===\n" << std::endl;
     std::cout << "模拟车辆：合创Z03 510km版 (实际容量约36kWh, SOH≈57%)\n\n";
 
-    DataSimulator simulator;
     BMSParser parser;
+    parser.loadProtocolConfig("../config/bms_protocol.json");   // 加载JSON配置
+    
+    DataSimulator simulator;
     Logger logger("bms_log.csv");
+
+    // 启动 UDP 接收器
+    parser.startUdpReceiver(8888);
 
     int frameCount = 0;
     const int MAX_FRAMES = 300;   // 先跑300帧演示
@@ -57,7 +62,6 @@ int main() {
 
     std::cout << "\n=== 测试结束 ===\n";
     std::cout << "日志已保存至 bms_log.csv\n";
-    std::cout << "你可以基于此项目继续扩展功能。\n";
 
     return 0;
 }
