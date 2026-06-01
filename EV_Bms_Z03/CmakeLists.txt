@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.14)
+project(EV_BMS_Z03 VERSION 1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# 编译选项
+add_compile_options(-Wall -Wextra -Wpedantic -O2)
+
+# 头文件路径
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+# 源文件
+file(GLOB SOURCES 
+    "${PROJECT_SOURCE_DIR}/src/*.cpp"
+)
+
+# 生成可执行文件
+add_executable(bms_parser ${SOURCES})
+
+# 链接库（后续需要可以加 pthread、rt 等）
+target_link_libraries(bms_parser pthread)
+
+# 安装（可选）
+install(TARGETS bms_parser DESTINATION bin)
