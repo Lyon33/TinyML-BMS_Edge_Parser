@@ -5,12 +5,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 编译选项
-add_compile_options(-Wall -Wextra -Wpedantic -O2)
+# 输出目录
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# 查找线程库
+find_package(Threads REQUIRED)
 
 # 头文件路径
-include_directories(${PROJECT_SOURCE_DIR}/include
-                    ${PROJECT_SOURCE_DIR}/third_party/json)
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party/json)
 
 # 源文件
 file(GLOB SOURCES 
@@ -21,7 +25,12 @@ file(GLOB SOURCES
 add_executable(bms_parser ${SOURCES})
 
 # 链接库（后续需要可以加 pthread、rt 等）
-target_link_libraries(bms_parser pthread)
+target_link_libraries(bms_parser PRIVATE Threads::Threads)
+
+# 编译选项
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(bms_parser PRIVATE -Wall -Wextra -O2)
+endif()
 
 # 安装（可选）
 install(TARGETS bms_parser DESTINATION bin)

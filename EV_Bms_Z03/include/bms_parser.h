@@ -1,10 +1,10 @@
 /*************************************************************************
-* File Name: include/bms_parser.h
-* Author: Lyon
-* Mail: 786208769@qq.com
-* Created Time: 一  6/ 1 16:12:42 2026
-* 🍺🍺🍺 Function is: 
-*************************************************************************/
+ * * File Name: include/bms_parser.h
+ * * Author: Lyon
+ * * Mail: 786208769@qq.com
+ * * Created Time: 一  6/ 1 16:12:42 2026
+ * * 🍺🍺🍺 Function is: 
+ * *************************************************************************/
 // include/bms_parser.h
 #pragma once
 #include "battery_data.h"
@@ -12,6 +12,8 @@
 #include <functional>
 #include <unordered_map>
 #include <thread>
+#include <atomic>
+#include <mutex>
 
 class BMSParser {
 public:
@@ -44,7 +46,7 @@ private:
 
     // 内部校验和处理
     void validateData(BatteryPack& pack);
-    
+
     // UDP 相关成员
     std::atomic<bool> udp_running{false};
     int udp_socket = -1;

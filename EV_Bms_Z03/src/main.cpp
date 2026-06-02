@@ -1,10 +1,10 @@
 /*************************************************************************
-* File Name: src/main.cpp
-* Author: Lyon
-* Mail: 786208769@qq.com
-* Created Time: 一  6/ 1 16:08:25 2026
-* 🍺🍺🍺 Function is: 
-*************************************************************************/
+ * * File Name: src/main.cpp
+ * * Author: Lyon
+ * * Mail: 786208769@qq.com
+ * * Created Time: 一  6/ 1 16:08:25 2026
+ * * 🍺🍺🍺 Function is: 
+ * *************************************************************************/
 // src/main.cpp
 #include "data_simulator.h"
 #include "bms_parser.h"
@@ -31,7 +31,12 @@ int main() {
     std::cout << "UDP接收端口: 8888 | 按 Ctrl+C 退出\n\n";
 
     BMSParser parser;
-    parser.loadProtocolConfig("../config/bms_protocol.json");
+
+    if(!parser.loadProtocolConfig("../config/bms_protocol.json"))
+    {
+        std::cerr << "❌ 配置加载失败，程序退出！" << std::endl;
+        return 1;
+    };
 
     DataSimulator simulator;
     Logger logger("bms_log.csv");
