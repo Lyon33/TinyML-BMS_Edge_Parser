@@ -1,0 +1,128 @@
+# ===============================
+# Build outputs
+# ===============================
+build/
+_build/
+out/
+bin/
+obj/
+Debug/
+Release/
+
+# Compiled object files
+*.o
+*.obj
+
+# Binaries / firmware images
+*.elf
+*.bin
+*.hex
+*.s19
+*.srec
+*.map
+*.lst
+
+# Linker / compiler artifacts
+*.d
+*.i
+*.ii
+
+# ===============================
+# Toolchains & IDEs
+# ===============================
+# GCC / ARM / RISC-V toolchains
+.toolchain/
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# CLion / JetBrains
+.idea/
+cmake-build-*/
+
+# Eclipse
+.settings/
+.project
+.cproject
+.metadata/
+
+# PlatformIO
+.pio/
+platformio.ini
+
+# Arduino
+*.ino.backup
+
+# ===============================
+# TinyML / ML models
+# ===============================
+# Model files (usually too large for git)
+*.tflite
+*.tflm
+*.pb
+*.onnx
+*.h5
+*.pt
+*.pth
+
+# Quantization / calibration data
+*_quant.tflite
+*_int8.tflite
+
+# Training datasets
+datasets/
+data/raw/
+data/processed/
+
+# Tensorflow / PyTorch cache
+__pycache__/
+*.pyc
+
+# ===============================
+# BMS-specific artifacts
+# ===============================
+# CAN / DBC generated code
+generated/
+auto_gen/
+*.dbc
+
+# Calibration files
+*.cal
+*.cfg_bin
+
+# Logs & traces
+logs/
+trace/
+*.log
+
+# ===============================
+# OS & misc
+# ===============================
+# macOS
+.DS_Store
+*/.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# ===============================
+# Secrets / credentials
+# ===============================
+.env
+secrets.*
+credentials.*
+
+# ===============================
+# Documentation build
+# ===============================
+docs/_build/
+*.pdf

@@ -1,0 +1,15 @@
+{
+    "vehicle_model": "合创Z03 510km版",
+    "battery_type": "LFP_96S",
+    "nominal_capacity_kwh": 36,
+    "original_range_km": 510,
+    "current_range_km": 240,
+    "total_cells": 96,
+    "signals": {
+        "total_voltage": { "unit": "V", "scale": 0.1  },
+        "total_current": { "unit": "A", "scale": 0.1  },
+        "soc": { "unit": "%", "scale": 1.0  },
+        "soh": { "unit": "%", "scale": 1.0  },
+        "max_temp": { "unit": "°C", "scale": 1.0  }
+    }
+}
