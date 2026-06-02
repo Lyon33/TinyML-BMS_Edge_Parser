@@ -38,9 +38,14 @@ BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
 
     // 基于实际容量计算续航
     if (processed.soh > 0.0f) {
-        processed.estimated_range = 36.0f * (processed.soh / 100.0f) * 6.8f;
-    }
 
+        processed.estimated_range = 36.0f * (processed.soh / 100.0f) * 6.8f;
+        /* 当 SOH = 57% 时：
+        // 36 × 0.57 × 6.8 ≈ 139.5 km
+        // 所以不管 SOC 如何变化，续航只会跟着 SOH 变化，而模拟器里
+        // SOH 目前是固定57%，因此续航就会一直显示139km。
+        */
+    }
     return processed;
 }
 
