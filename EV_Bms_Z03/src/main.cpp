@@ -52,6 +52,9 @@ int main() {
         // 模拟器生成数据
         BatteryPack rawData = simulator.generateFrame();    // 生成模拟数据
         BatteryPack processed = parser.parseFrame(rawData); // 解析处理
+        
+        parser.updateBatteryData(processed);                // 更新到管理器
+                                                            
         logger.writeFrame(processed);                       // 记录日志
 
         // 每25帧打印一次模拟数据
@@ -62,7 +65,8 @@ int main() {
                 << "SOH: " << processed.soh << "% | "
                 << "电压: " << processed.total_voltage << "V | "
                 << "电流: " << processed.total_current << "A | "
-                << "续航: " << (int)processed.estimated_range << "km" << std::endl;
+                << "续航: " << (int)processed.estimated_range << "km |"
+                << "历史记录数：" << parser.getHistoryData().size() << std::endl;
         }
 
         frameCount++;

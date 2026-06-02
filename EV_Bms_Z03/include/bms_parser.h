@@ -35,6 +35,11 @@ public:
     // JSON 配置
     bool loadProtocolConfig(const std::string& configPath);
     std::string getVehicleInfo() const;     // 返回车辆信息
+                                            
+    // BatteryData 相关接口
+    void updateBatteryData(const BatteryPack& pack);
+    const BatteryPack& getLatestData() const; 
+    std::vector<BatteryPack> getHistoryData() const;
 
     // 新增：UDP接收
     bool startUdpReceiver(int port = 8888);
@@ -47,6 +52,8 @@ private:
 
     // 内部校验和处理
     void validateData(BatteryPack& pack);
+
+    BatteryData batteryData;
 
     // UDP 相关成员
     std::atomic<bool> udp_running{false};   // 原子变量，控制线程是否运行

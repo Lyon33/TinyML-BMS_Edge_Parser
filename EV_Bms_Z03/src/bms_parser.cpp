@@ -191,3 +191,17 @@ BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
     pack.charging_status = (pack.total_current < 0) ? "Charging" : "Discharging";
     return pack;
 }
+
+// 新增 BatteryData接口实现
+void BMSParser::updateBatteryData(const BatteryPack& pack) {
+    batteryData.update(pack);
+}
+
+const BatteryPack& BMSParser::getLatestData() const {
+    return batteryData.getLatest();
+}
+
+std::vector<BatteryPack> BMSParser::getHistoryData() const {
+    return batteryData.getHistory();
+}
+
