@@ -51,6 +51,10 @@ private:
     std::thread udp_thread;
     std::mutex data_mutex;
 
+    std::atomic<uint64_t> received_packets{0};
+    std::atomic<uint64_t> last_heartbeat{0};
+    const uint64_t HEARTBEAT_TIMEOUT_MS = 5000;
+
     void udpReceiveLoop(int port);
     BatteryPack parseUdpData(const uint8_t* buffer, size_t length);
 };

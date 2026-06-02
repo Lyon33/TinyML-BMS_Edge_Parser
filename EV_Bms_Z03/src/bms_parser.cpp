@@ -26,97 +26,7 @@ BMSParser::~BMSParser(){
     stopUdpReceiver();
 }
 
-bool BMSParser::startUdpReceiver(int port){
-    if(udp_running) return true;
-
-    udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
-    if(udp_socket < 0){
-        std::cerr << "❌ 创建UDP Socket失败" << std::endl;
-        return false;
-    }
-
-    int reuse = 1;
-    setsockopt(udp_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if(bind(udp_socket, (sockaddr*)&addr, sizeof(addr)) < 0){
-        std::cerr << "❌ UDP绑定端口 " << port << " 失败" << std::endl;
-        close(udp_socket);
-        return false;
-    }
-
-    udp_running = true;
-    udp_thread = std::thread(&BMSParser::udpReceiveLoop, this, port);
-
-    std::cout << "✅ 工业级UDP接收器已启动，监听端口: " << port << std::endl;
-    std::cout << "   等待外部数据发送... (可使用Python/Netcat测试)" << std::endl;
-    
-    return true;
-}
-
-void BMSParser::stopUdpReceiver(){
-    if (!udp_running) return;
-    udp_running = false;
-
-    if (udp_socket >= 0) {
-        close(udp_socket);
-        udp_socket = -1;
-    }
-
-    if (udp_thread.joinable()) {
-        udp_thread.join();
-    }
-}
-
-void BMSParser::udpReceiveLoop(int port) {
-    uint8_t buffer[1024];
-    sockaddr_in sender_addr{};
-    socklen_t addr_len = sizeof(sender_addr);
-
-    while (udp_running) {
-        ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender_addr, &addr_len);
-
-        if (len > 0) {
-            std::lock_guard<std::mutex> lock(data_mutex);
-            BatteryPack pack = parseUdpData(buffer, len);
-            BatteryPack processed = parseFrame(pack);
-
-            std::cout << "[UDP接收] SOC: " << processed.soc << "% | SOH: " << processed.soh 
-                << "% | 电压: " << processed.total_voltage << "V | 续航: " 
-                << (int)processed.estimated_range << "km" << std::endl;
-        }
-    }
-}
-
-BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
-    BatteryPack pack;
-    pack.timestamp = std::chrono::system_clock::now();
-
-    // 简单二进制协议解析示例（工业常用格式）
-    if (length >= 32) {
-        pack.total_voltage = *(float*)(buffer + 0);
-        pack.total_current = *(float*)(buffer + 4);
-        pack.soc = *(float*)(buffer + 8);
-        pack.soh = *(float*)(buffer + 12);
-        pack.max_temperature = *(float*)(buffer + 16);
-        pack.estimated_range = *(float*)(buffer + 20);
-
-        pack.charging_status = (pack.total_current < 0) ? "Charging" : "Discharging";
-    } else {
-        // 如果数据太短，使用默认模拟值
-        pack.total_voltage = 320.0f;
-        pack.total_current = -30.0f;
-        pack.soc = 65.0f;
-        pack.soh = 57.0f;
-        pack.max_temperature = 41.0f;
-    }
-    return pack;
-}
-
+// ========================= 核心解析 =========================
 BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
     BatteryPack processed = rawData;
 
@@ -183,4 +93,102 @@ std::vector<std::string> BMSParser::detectFaults(const BatteryPack& pack) {
 
 void BMSParser::registerParser(uint32_t signalId, std::function<void(BatteryPack&, float)> handler) {
     customParsers[signalId] = handler;
+}
+
+// ========================= 工业级UDP接收模块 =========================
+bool BMSParser::startUdpReceiver(int port){
+    if(udp_running) return true;
+
+    udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if(udp_socket < 0){
+        std::cerr << "❌ 创建UDP Socket失败" << std::endl;
+        return false;
+    }
+
+    int reuse = 1;
+    setsockopt(udp_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if(bind(udp_socket, (sockaddr*)&addr, sizeof(addr)) < 0){
+        std::cerr << "❌ UDP绑定端口 " << port << " 失败" << std::endl;
+        close(udp_socket);
+        return false;
+    }
+
+    udp_running = true;
+    udp_thread = std::thread(&BMSParser::udpReceiveLoop, this, port);
+
+    std::cout << "✅ 工业级UDP接收器已启动，监听端口: " << port << std::endl;
+    std::cout << "   等待外部数据发送... (可使用Python/Netcat测试)" << std::endl;
+    
+    return true;
+}
+
+void BMSParser::stopUdpReceiver(){
+    if (!udp_running) return;
+    udp_running = false;
+
+    if (udp_socket >= 0) {
+        close(udp_socket);
+        udp_socket = -1;
+    }
+
+    if (udp_thread.joinable()) {
+        udp_thread.join();
+    }
+}
+
+void BMSParser::udpReceiveLoop(int port) {
+    uint8_t buffer[1024];
+    sockaddr_in sender{};
+    socklen_t slen = sizeof(sender);
+    uint64_t packet_count = 0;
+    auto last_print = std::chrono::steady_clock::now();
+
+    while (udp_running) {
+        ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender, &slen);
+
+        if (len > 0) {
+            packet_count++;
+            BatteryPack pack = parseUdpData(buffer,len);
+            BatteryPack processed = parseFrame(pack);
+
+            if(packet_count % 8 == 0)   // 每8包打印一次统计
+            {
+                auto now = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count();
+                std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " 
+                    << (8.0 / (duration > 0 ? duration : 1)) << "包/秒" << std::endl;
+                last_print = now;
+            }
+        }
+    }
+}
+
+BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
+    BatteryPack pack;
+    pack.timestamp = std::chrono::system_clock::now();
+
+    // 简单二进制协议解析示例（工业常用格式）
+    if (length >= 32) {
+        pack.total_voltage = *(float*)(buffer + 0);
+        pack.total_current = *(float*)(buffer + 4);
+        pack.soc = *(float*)(buffer + 8);
+        pack.soh = *(float*)(buffer + 12);
+        pack.max_temperature = *(float*)(buffer + 16);
+        pack.estimated_range = *(float*)(buffer + 20);
+    } else {
+        // 如果数据太短，使用默认模拟值
+        pack.total_voltage = 320.0f;
+        pack.total_current = -30.0f;
+        pack.soc = 65.0f;
+        pack.soh = 57.0f;
+        pack.max_temperature = 41.0f;
+    }
+    pack.charging_status = (pack.total_current < 0) ? "Charging" : "Discharging";
+    return pack;
 }

@@ -30,22 +30,34 @@ make -j4
 ```
 
 ### 测试UDP方法（等程序运行后，新开一个终端）
+- 工业级UDP接收（多线程、端口复用、错误处理、二进制解析）
 ```
 # 测试发送数据
-echo -n -e '\x00\x00\xa0\x42\x00\x00\x70\xc2\x00\x00\x82\x42\x00\x00\xe4\x42\x00\x00\x20\x41\x00\x00\x70\x42' | nc -u -w1 127.0.0.1 8888
+while true; do 
+    echo -n -e '\x00\x00\xa0\x42\x00\x00\x70\xc2\x00\x00\x82\x42\x00\x00\xe4\x42\x00\x00\x20\x41\x00\x00\x70\x42' | nc -u -w1 127.0.0.1 8888
+    sleep 1
+done
 ```
 
 ### 项目结构
 - EV_BMS_Parser/
-- ├── include/          # 头文件
-- ├── src/              # 源代码
-- ├── config/           # 协议配置文件
-- ├── third_party/      # 第三方库
-- ├── data/             # 测试数据
-- ├── bms_log.csv       # 运行日志
+- ├── include/               # 头文件
+- ├── src/                   # 源代码
+- ├── config/                # 协议配置文件
+- ├── third_party/json/      # 第三方库
+- ├── data/                  # 测试数据
+- ├── bms_log.csv            # 运行日志
 - └── README.md
+
+### 架构设计
+#### 采用经典分层架构
+- Simulator Layer: 真实车辆数据模拟
+- Parser Layer: 协议解析 + 故障诊断
+- Communication Layer: 工业级UDP接收
+- Logger Layer: 数据持久化
 
 ### 未来拓展方向
 - 支持SocketCAN真实硬件接收 
 - Web可视化界面（WebSocket + Qt / ImGui）
 - 机器学习预测电池衰减趋势
+- 支持DBC协议文件解析
