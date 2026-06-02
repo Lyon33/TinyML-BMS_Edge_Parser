@@ -12,30 +12,29 @@
 #include <chrono>
 #include <optional>
 
-struct CellData {
-    int id = 0;
+struct CellData {             // 单个电芯单数据
+    int id = 0;               // 第几号电芯
     float voltage = 0.0f;     // 单体电压 (V)
     float temperature = 0.0f; // 温度 (°C)
 };
 
-struct BatteryPack {
-    std::chrono::system_clock::time_point timestamp;
+struct BatteryPack {                 // 电池包单数据
+    std::chrono::system_clock::time_point timestamp; // 当前时间
     
     float total_voltage = 0.0f;      // 总电压 (V)
-    float total_current = 0.0f;      // 总电流 (A)
-    float soc = 0.0f;                // SOC (%)
-    float soh = 0.0f;                // SOH (%)
+    float total_current = 0.0f;      // 当前电流 (A), 正=放电，负=充电
+    float soc = 0.0f;                // 电量百分比SOC (%)
+    float soh = 0.0f;                // 电池健康度SOH (%)
     
-    float max_cell_voltage = 0.0f;
-    float min_cell_voltage = 0.0f;
+    float max_cell_voltage = 0.0f;   //最高单体电压
+    float min_cell_voltage = 0.0f;   //最低单体电压
     float max_temperature = 0.0f;
     float min_temperature = 0.0f;
     
-    std::vector<CellData> cells;
+    std::vector<CellData> cells;     // 所有96个电芯的数据
     std::string charging_status;     // "FastCharging", "SlowCharging", "Idle"
-    std::vector<std::string> faults; // 故障码
+    std::vector<std::string> faults; // 故障码列表
     
-    // 你的车相关
     float estimated_range = 0.0f;    // 预估续航 (km)
 };
 

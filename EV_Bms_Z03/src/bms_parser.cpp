@@ -27,17 +27,18 @@ BMSParser::~BMSParser(){
 
 // ========================= 核心解析（完全保留你的原始实现） =========================
 BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
-    BatteryPack processed = rawData;
+    BatteryPack processed = rawData;    //先复制一份原始数据
 
-    validateData(processed);
+    validateData(processed);            // 检查数据是否合理
 
-    auto faults = detectFaults(processed);
+    auto faults = detectFaults(processed);  //检查有没有故障
     processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
 
+    // 计算续航
     if (processed.soh > 0.0f) {
         processed.estimated_range = 36.0f * (processed.soh / 100.0f) * 6.8f;
     }
-    return processed;
+    return processed;                       // 返回处理后的数据
 }
 
 bool BMSParser::loadProtocolConfig(const std::string& configPath) {
@@ -66,6 +67,7 @@ std::string BMSParser::getVehicleInfo() const {
     return "合创Z03 510km版 | 实际容量: 36kWh | SOH≈57%";
 }
 
+// 故障检查函数, 用来提前发现危险数据避免后面用错误数据做计算
 void BMSParser::validateData(BatteryPack& pack) {
     pack.faults.clear();
     if (pack.total_voltage < 200.0f || pack.total_voltage > 420.0f) {
@@ -79,10 +81,11 @@ void BMSParser::validateData(BatteryPack& pack) {
     }
 }
 
+// 故障诊断函数（专门检查电芯之间是否平衡）
 std::vector<std::string> BMSParser::detectFaults(const BatteryPack& pack) {
     std::vector<std::string> faults;
     float voltage_diff = pack.max_cell_voltage - pack.min_cell_voltage;
-    if (voltage_diff > 0.8f) {
+    if (voltage_diff > 0.8f) {              // 压差大于0.8V，记录故障
         faults.push_back("P0A02_Cell_Voltage_Imbalance");
     }
     return faults;
@@ -96,15 +99,17 @@ void BMSParser::registerParser(uint32_t signalId, std::function<void(BatteryPack
 bool BMSParser::startUdpReceiver(int port){
     if(udp_running.load()) return true;
 
-    udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    udp_socket = socket(AF_INET, SOCK_DGRAM, 0);    // 创建一个“收邮件的信箱”
     if(udp_socket < 0){
         std::cerr << "❌ 创建UDP Socket失败" << std::endl;
         return false;
     }
 
+    // ⚠️  设置端口复用，防止端口被占用
     int reuse = 1;
     setsockopt(udp_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 
+    // 绑定端口 8888
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
@@ -118,6 +123,7 @@ bool BMSParser::startUdpReceiver(int port){
     }
 
     udp_running = true;
+    // 启动一个新线程专门接收数据
     udp_thread = std::thread(&BMSParser::udpReceiveLoop, this, port);
 
     std::cout << "✅ 工业级UDP接收器已启动，监听端口: " << port << std::endl;
@@ -139,19 +145,20 @@ void BMSParser::stopUdpReceiver(){
     std::cout << "🛑 UDP接收器已停止" << std::endl;
 }
 
+// UDP 模块核心工作线程(循环接收数据)
 void BMSParser::udpReceiveLoop(int port) {
-    uint8_t buffer[1024];
+    uint8_t buffer[1024];           // 准备一个1024字节的“收件箱”
     sockaddr_in sender{};
     socklen_t slen = sizeof(sender);
 
     while (udp_running.load()) {
         ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender, &slen);
 
-        if (len > 0) {
-            BatteryPack pack = parseUdpData(buffer, len);
-            BatteryPack processed = parseFrame(pack);
+        if (len > 0) {              // 如果收到数据
+            BatteryPack pack = parseUdpData(buffer, len);   // 解析收到的二进制数据
+            BatteryPack processed = parseFrame(pack);       // 处理数据
 
-            // 可在此处加入 Logger 处理
+            // 打印统计信息
             std::cout << "[UDP] 收到数据包 | SOC: " << processed.soc << "% | 电压: " 
                 << processed.total_voltage << "V" << std::endl;
         }
@@ -161,8 +168,9 @@ void BMSParser::udpReceiveLoop(int port) {
     }
 }
 
+// 解析外部发来的UDP数据
 BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
-    // 你的原始实现完全保留
+
     BatteryPack pack;
     pack.timestamp = std::chrono::system_clock::now();
 

@@ -11,7 +11,7 @@
 #include <iomanip>
 
 Logger::Logger(const std::string& filename) {
-    file.open(filename, std::ios::app);
+    file.open(filename, std::ios::app);     // 打开CSV文件（以追加模式）
     if (first_write) {
         file << "Timestamp,SOC,SOH,TotalVoltage,TotalCurrent,MaxTemp,Range,Status,Faults\n";
         first_write = false;

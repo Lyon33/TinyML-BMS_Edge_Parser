@@ -34,7 +34,7 @@ public:
 
     // JSON 配置
     bool loadProtocolConfig(const std::string& configPath);
-    std::string getVehicleInfo() const;
+    std::string getVehicleInfo() const;     // 返回车辆信息
 
     // 新增：UDP接收
     bool startUdpReceiver(int port = 8888);
@@ -42,16 +42,17 @@ public:
     bool isUdpRunning() const;
 
 private:
+    // 内部存储自定义解析规则
     std::unordered_map<uint32_t, std::function<void(BatteryPack&, float)>> customParsers;
 
     // 内部校验和处理
     void validateData(BatteryPack& pack);
 
     // UDP 相关成员
-    std::atomic<bool> udp_running{false};
+    std::atomic<bool> udp_running{false};   // 原子变量，控制线程是否运行
     int udp_socket = -1;
-    std::thread udp_thread;
-    std::mutex data_mutex;
+    std::thread udp_thread;                 // UDP接收线程
+    std::mutex data_mutex;                  // 互斥锁，保证线程安全
 
     std::atomic<uint64_t> received_packets{0};
     std::atomic<uint64_t> last_heartbeat{0};

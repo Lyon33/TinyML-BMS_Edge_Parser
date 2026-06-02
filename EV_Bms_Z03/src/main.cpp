@@ -38,8 +38,8 @@ int main() {
         return 1;
     };
 
-    DataSimulator simulator;
-    Logger logger("bms_log.csv");
+    DataSimulator simulator;            // 创建模拟器
+    Logger logger("bms_log.csv");       // 创建日志记录器
 
     // 启动工业级UDP接收
     parser.startUdpReceiver(8888);
@@ -50,9 +50,9 @@ int main() {
 
     while (g_running) {
         // 模拟器生成数据
-        BatteryPack rawData = simulator.generateFrame();
-        BatteryPack processed = parser.parseFrame(rawData);
-        logger.writeFrame(processed);
+        BatteryPack rawData = simulator.generateFrame();    // 生成模拟数据
+        BatteryPack processed = parser.parseFrame(rawData); // 解析处理
+        logger.writeFrame(processed);                       // 记录日志
 
         // 每25帧打印一次模拟数据
         if (frameCount % 25 == 0) {
@@ -66,10 +66,10 @@ int main() {
         }
 
         frameCount++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));    //休息200ms
     }
 
-    parser.stopUdpReceiver();
+    parser.stopUdpReceiver();       // 退出前停止UDP
     std::cout << "\n=== 程序已退出 ===\n";
     std::cout << "日志已保存至 bms_log.csv\n";
     return 0;
