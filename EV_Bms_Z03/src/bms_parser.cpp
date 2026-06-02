@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <thread>
 
@@ -141,29 +142,43 @@ void BMSParser::stopUdpReceiver(){
         udp_thread.join();
     }
 }
-
 void BMSParser::udpReceiveLoop(int port) {
     uint8_t buffer[1024];
     sockaddr_in sender{};
     socklen_t slen = sizeof(sender);
     uint64_t packet_count = 0;
     auto last_print = std::chrono::steady_clock::now();
+    auto last_heartbeat = std::chrono::steady_clock::now();
 
     while (udp_running) {
         ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender, &slen);
 
         if (len > 0) {
             packet_count++;
-            BatteryPack pack = parseUdpData(buffer,len);
+            last_heartbeat = std::chrono::steady_clock::now();
+
+            BatteryPack pack = parseUdpData(buffer, len);
             BatteryPack processed = parseFrame(pack);
 
-            if(packet_count % 8 == 0)   // 每8包打印一次统计
-            {
+            // 每8包打印一次统计
+            if (packet_count % 8 == 0) {
                 auto now = std::chrono::steady_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count();
                 std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " 
-                    << (8.0 / (duration > 0 ? duration : 1)) << "包/秒" << std::endl;
+                    << (8.0 / (duration > 0 ? duration : 1)) << "包/秒 | 来源: " 
+                    << inet_ntoa(sender.sin_addr) << std::endl;
                 last_print = now;
+            }
+        } 
+        else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            std::cerr << "[UDP错误] 接收失败: " << strerror(errno) << std::endl;
+        }
+
+        // 心跳超时检测
+        if (packet_count > 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::seconds>(now - last_heartbeat).count() > 8) {
+                std::cout << "[UDP警告] 心跳超时，可能数据源已断开" << std::endl;
             }
         }
     }
@@ -182,7 +197,7 @@ BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
         pack.max_temperature = *(float*)(buffer + 16);
         pack.estimated_range = *(float*)(buffer + 20);
     } else {
-        // 如果数据太短，使用默认模拟值
+        // 如果数据太短(或者收到空包、测试包时)，使用默认模拟值
         pack.total_voltage = 320.0f;
         pack.total_current = -30.0f;
         pack.soc = 65.0f;
