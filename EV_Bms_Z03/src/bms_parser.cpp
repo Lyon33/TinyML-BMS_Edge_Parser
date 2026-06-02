@@ -142,6 +142,7 @@ void BMSParser::stopUdpReceiver(){
         udp_thread.join();
     }
 }
+
 void BMSParser::udpReceiveLoop(int port) {
     uint8_t buffer[1024];
     sockaddr_in sender{};
@@ -160,7 +161,6 @@ void BMSParser::udpReceiveLoop(int port) {
             BatteryPack pack = parseUdpData(buffer, len);
             BatteryPack processed = parseFrame(pack);
 
-            // 每8包打印一次统计
             if (packet_count % 8 == 0) {
                 auto now = std::chrono::steady_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count();
@@ -169,19 +169,10 @@ void BMSParser::udpReceiveLoop(int port) {
                     << inet_ntoa(sender.sin_addr) << std::endl;
                 last_print = now;
             }
-        } 
-        else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            std::cerr << "[UDP错误] 接收失败: " << strerror(errno) << std::endl;
-        }
-
-        // 心跳超时检测
-        if (packet_count > 0) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::seconds>(now - last_heartbeat).count() > 8) {
-                std::cout << "[UDP警告] 心跳超时，可能数据源已断开" << std::endl;
-            }
         }
     }
+
+    std::cout << "[UDP] 接收线程已正常退出" << std::endl;
 }
 
 BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
