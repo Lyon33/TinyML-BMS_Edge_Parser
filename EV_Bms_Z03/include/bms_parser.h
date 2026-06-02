@@ -11,10 +11,12 @@
 #include "data_simulator.h"
 #include <functional>
 #include <unordered_map>
+#include <thread>
 
 class BMSParser {
 public:
     BMSParser();
+    ~BMSParser();
 
     // 解析一帧数据（当前主要处理模拟器生成的数据）
     BatteryPack parseFrame(const BatteryPack& rawData);
@@ -33,12 +35,22 @@ public:
     std::string getVehicleInfo() const;
 
     // 新增：UDP接收
-    void startUdpReceiver(int port = 8888);
+    bool startUdpReceiver(int port = 8888);
     void stopUdpReceiver();
+    bool isUdpRunning() const;
 
 private:
     std::unordered_map<uint32_t, std::function<void(BatteryPack&, float)>> customParsers;
 
     // 内部校验和处理
     void validateData(BatteryPack& pack);
+    
+    // UDP 相关成员
+    std::atomic<bool> udp_running{false};
+    int udp_socket = -1;
+    std::thread udp_thread;
+    std::mutex data_mutex;
+
+    void udpReceiveLoop(int port);
+    BatteryPack parseUdpData(const uint8_t* buffer, size_t length);
 };

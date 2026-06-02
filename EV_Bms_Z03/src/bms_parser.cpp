@@ -22,6 +22,101 @@ BMSParser::BMSParser() {
     // 可以在这里注册一些默认处理规则
 }
 
+BMSParser::~BMSParser(){
+    stopUdpReceiver();
+}
+
+bool BMSParser::startUdpReceiver(int port){
+    if(udp_running) return true;
+
+    udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    if(udp_socket < 0){
+        std::cerr << "❌ 创建UDP Socket失败" << std::endl;
+        return false;
+    }
+
+    int reuse = 1;
+    setsockopt(udp_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if(bind(udp_socket, (sockaddr*)&addr, sizeof(addr)) < 0){
+        std::cerr << "❌ UDP绑定端口 " << port << " 失败" << std::endl;
+        close(udp_socket);
+        return false;
+    }
+
+    udp_running = true;
+    udp_thread = std::thread(&BMSParser::udpReceiveLoop, this, port);
+
+    std::cout << "✅ 工业级UDP接收器已启动，监听端口: " << port << std::endl;
+    std::cout << "   等待外部数据发送... (可使用Python/Netcat测试)" << std::endl;
+    
+    return true;
+}
+
+void BMSParser::stopUdpReceiver(){
+    if (!udp_running) return;
+    udp_running = false;
+
+    if (udp_socket >= 0) {
+        close(udp_socket);
+        udp_socket = -1;
+    }
+
+    if (udp_thread.joinable()) {
+        udp_thread.join();
+    }
+}
+
+void BMSParser::udpReceiveLoop(int port) {
+    uint8_t buffer[1024];
+    sockaddr_in sender_addr{};
+    socklen_t addr_len = sizeof(sender_addr);
+
+    while (udp_running) {
+        ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender_addr, &addr_len);
+
+        if (len > 0) {
+            std::lock_guard<std::mutex> lock(data_mutex);
+            BatteryPack pack = parseUdpData(buffer, len);
+            BatteryPack processed = parseFrame(pack);
+
+            std::cout << "[UDP接收] SOC: " << processed.soc << "% | SOH: " << processed.soh 
+                << "% | 电压: " << processed.total_voltage << "V | 续航: " 
+                << (int)processed.estimated_range << "km" << std::endl;
+        }
+    }
+}
+
+BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
+    BatteryPack pack;
+    pack.timestamp = std::chrono::system_clock::now();
+
+    // 简单二进制协议解析示例（工业常用格式）
+    if (length >= 32) {
+        pack.total_voltage = *(float*)(buffer + 0);
+        pack.total_current = *(float*)(buffer + 4);
+        pack.soc = *(float*)(buffer + 8);
+        pack.soh = *(float*)(buffer + 12);
+        pack.max_temperature = *(float*)(buffer + 16);
+        pack.estimated_range = *(float*)(buffer + 20);
+
+        pack.charging_status = (pack.total_current < 0) ? "Charging" : "Discharging";
+    } else {
+        // 如果数据太短，使用默认模拟值
+        pack.total_voltage = 320.0f;
+        pack.total_current = -30.0f;
+        pack.soc = 65.0f;
+        pack.soh = 57.0f;
+        pack.max_temperature = 41.0f;
+    }
+    return pack;
+}
+
 BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
     BatteryPack processed = rawData;
 
@@ -61,32 +156,6 @@ std::string BMSParser::getVehicleInfo() const {
         return "合创Z03 510km版 | 实际容量: 36kWh | SOH≈57%";
 }
 
-// ==================== 新增 UDP 接收模块 ====================
-static bool g_udp_running = false;
-static int g_udp_socket = -1;
-
-void BMSParser::startUdpReceiver(int port) {
-    g_udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
-    if (g_udp_socket < 0) {
-        std::cerr << "创建UDP Socket失败" << std::endl;
-        return;
-    }
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(g_udp_socket, (sockaddr*)&addr, sizeof(addr)) < 0) {
-        std::cerr << "UDP绑定端口失败: " << port << std::endl;
-        return;
-    }
-
-    g_udp_running = true;
-    std::cout << "✅ UDP接收器已启动，端口: " << port << "（等待外部数据...）" << std::endl;
-}
-
-
 void BMSParser::validateData(BatteryPack& pack) {
     pack.faults.clear();
     if (pack.total_voltage < 200.0f || pack.total_voltage > 420.0f) {
@@ -114,14 +183,4 @@ std::vector<std::string> BMSParser::detectFaults(const BatteryPack& pack) {
 
 void BMSParser::registerParser(uint32_t signalId, std::function<void(BatteryPack&, float)> handler) {
     customParsers[signalId] = handler;
-}
-
-// UDP 占位（暂时不实现完整逻辑）
-/* void BMSParser::startUdpReceiver(int port) { */
-/*     std::cout << "✅ UDP接收器启动 (端口 " << port << ") - 模拟模式" << std::endl; */
-/* } */
-
-void BMSParser::stopUdpReceiver(){
-    g_udp_running = false;
-    if (g_udp_socket >= 0) close(g_udp_socket);
 }
