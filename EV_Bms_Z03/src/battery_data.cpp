@@ -22,7 +22,5 @@ const BatteryPack& BatteryData::getLatest() const {
 
 std::vector<BatteryPack> BatteryData::getHistory() const {
     return history;
-    std::unordered_map<uint32_t, std::function<void(BatteryPack&, float)>> customParsers;
-
 }
 

@@ -11,8 +11,6 @@
 #include <string>
 #include <chrono>
 #include <optional>
-#include <cstdint>
-#include <unordered_map>
 
 struct CellData {             // 单个电芯的数据
     int id = 0;               // 第几号电芯

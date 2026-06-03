@@ -15,12 +15,6 @@
 #include <atomic>
 #include <mutex>
 
-struct BMSConfig{ 
-    float nominal_capacity_kwh;
-    float energy_consumption_kwh_per_100km;
-    float original_range_km;
-};
-
 class BMSParser {
 public:
     BMSParser();
@@ -61,13 +55,11 @@ private:
 
     BatteryData batteryData;
 
-    BMSConfig config_;
-
     // UDP 相关成员
     std::atomic<bool> udp_running{false};   // 原子变量，控制线程是否运行
     int udp_socket = -1;
     std::thread udp_thread;                 // UDP接收线程
-    mutable std::mutex data_mutex;          // 互斥锁，保证线程安全
+    std::mutex data_mutex;                  // 互斥锁，保证线程安全
 
     std::atomic<uint64_t> received_packets{0};
     std::atomic<uint64_t> last_heartbeat{0};

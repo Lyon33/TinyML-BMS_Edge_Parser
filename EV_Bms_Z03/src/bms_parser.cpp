@@ -17,14 +17,6 @@
 #include <unistd.h>
 #include <chrono>
 
-// 工具函数：网络字节序 -> float
-inline float ntohf(uint32_t net){
-
-    uint32_t host = ntohl(net);
-    float f;
-    std::memcpy(&f, &host, sizeof(f));
-    return f;
-}
 BMSParser::BMSParser() {
         // 可以在这里注册一些默认处理规则
 }
@@ -42,14 +34,9 @@ BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
     auto faults = detectFaults(processed);  //检查有没有故障
     processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
 
-    // 计算续航; 使用 config_ 消除魔法字
-    if (processed.soh > 0.0f && config_.energy_consumption_kwh_per_100km > 0.0f) {
-
-        float usable_energy = config_.nominal_capacity_kwh * 
-            (processed.soh / 100.f);
-
-        processed.estimated_range = (usable_energy / 
-                                     config_.energy_consumption_kwh_per_100km) * 100.0f;
+    // 计算续航
+    if (processed.soh > 0.0f) {
+        processed.estimated_range = 36.0f * (processed.soh / 100.0f) * 6.8f;
     }
     return processed;                       // 返回处理后的数据
 }
@@ -64,18 +51,11 @@ bool BMSParser::loadProtocolConfig(const std::string& configPath) {
     try {
         nlohmann::json j;
         file >> j;
-        
-        config_.nominal_capacity_kwh =
-            j.value("nominal_capacity_kwh", 36.0f);
 
-        config_.energy_consumption_kwh_per_100km =
-            j.value("energy_consumption_kwh_per_100km", 6.8f);
-
-        config_.original_range_km =
-            j.value("original_range_km", 510.0f);
-
-        std::cout << "✅ 已成功加载配置协议: "
-            << configPath << std::endl;
+        std::cout << "✅ 已成功加载配置协议: " << configPath << std::endl;
+        std::cout << "   车辆型号: " << j.value("vehicle_model", "") << std::endl;
+        std::cout << "   电池容量: " << j.value("nominal_capacity_kwh", 0) << "kWh" << std::endl;
+        std::cout << "   标称续航: " << j.value("original_range_km", 0) << "km" << std::endl;
         return true;
     } catch (const std::exception& e) {
         std::cerr << "❌ 配置加载失败: " << e.what() << std::endl;
@@ -170,21 +150,32 @@ void BMSParser::udpReceiveLoop(int port) {
     uint8_t buffer[1024];           // 准备一个1024字节的“收件箱”
     sockaddr_in sender{};
     socklen_t slen = sizeof(sender);
+    uint64_t packet_count = 0;
+    auto last_print = std::chrono::steady_clock::now();
 
-    while (udp_running.load()) {
+    while (udp_running) {
         ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender, &slen);
 
         if (len > 0) {              // 如果收到数据
+            packet_count++;
             BatteryPack pack = parseUdpData(buffer, len);   // 解析收到的二进制数据
             BatteryPack processed = parseFrame(pack);       // 处理数据
 
-            // 打印统计信息
-            std::cout << "[UDP] 收到数据包 | SOC: " << processed.soc << "% | 电压: " 
-                << processed.total_voltage << "V" << std::endl;
+            // 打印统计信息(每8包打印一次)
+            if(packet_count % 8 == 0){
+                auto now = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::seconds>
+                    (now - last_print).count();
+                std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " 
+                          << (8.0 / (duration > 0 ? duration : 1)) << "包/秒" << std::endl;
+                last_print = now;
+            }
         }
+        else if{len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            std::cerr << "[UDP错误] 接收失败: " << strerror(errno) << std::endl;}
 
         // 防止CPU 100%
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
@@ -195,12 +186,12 @@ BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
     pack.timestamp = std::chrono::system_clock::now();
 
     if (length >= 32) {
-        pack.total_voltage  = ntohf(*reinterpret_cast<const uint32_t*>(buffer + 0));
-        pack.total_current  = ntohf(*reinterpret_cast<const uint32_t*>(buffer + 4));
-        pack.soc            = ntohf(*reinterpret_cast<const uint32_t*>(buffer + 8));
-        pack.soh            = ntohf(*reinterpret_cast<const uint32_t*>(buffer + 12));
-        pack.max_temperature= ntohf(*reinterpret_cast<const uint32_t*>(buffer + 16));
-        pack.estimated_range= ntohf(*reinterpret_cast<const uint32_t*>(buffer + 20));
+        pack.total_voltage = *(float*)(buffer + 0);
+        pack.total_current = *(float*)(buffer + 4);
+        pack.soc = *(float*)(buffer + 8);
+        pack.soh = *(float*)(buffer + 12);
+        pack.max_temperature = *(float*)(buffer + 16);
+        pack.estimated_range = *(float*)(buffer + 20);
     } else {
         pack.total_voltage = 320.0f;
         pack.total_current = -30.0f;
@@ -214,17 +205,14 @@ BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
 
 // 新增 BatteryData接口实现
 void BMSParser::updateBatteryData(const BatteryPack& pack) {
-    std::lock_guard<std::mutex> lock(data_mutex);       //加锁
     batteryData.update(pack);
 }
 
 const BatteryPack& BMSParser::getLatestData() const {
-    std::lock_guard<std::mutex> lock(data_mutex);       //加锁
     return batteryData.getLatest();
 }
 
 std::vector<BatteryPack> BMSParser::getHistoryData() const {
-    std::lock_guard<std::mutex> lock(data_mutex);       //加锁
     return batteryData.getHistory();
 }
 
