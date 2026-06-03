@@ -2,6 +2,7 @@
     "vehicle_model": "合创Z03 510km版",
     "battery_type": "LFP_96S",
     "nominal_capacity_kwh": 36,
+    "energy_consumption_kwh_per_100km": 6.8,
     "original_range_km": 510,
     "current_range_km": 240,
     "total_cells": 96,
