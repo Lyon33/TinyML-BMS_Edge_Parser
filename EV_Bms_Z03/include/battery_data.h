@@ -12,13 +12,13 @@
 #include <chrono>
 #include <optional>
 
-struct CellData {             // 单个电芯单数据
+struct CellData {             // 单个电芯的数据
     int id = 0;               // 第几号电芯
     float voltage = 0.0f;     // 单体电压 (V)
     float temperature = 0.0f; // 温度 (°C)
 };
 
-struct BatteryPack {                 // 电池包单数据
+struct BatteryPack {                 // 电池包的数据
     std::chrono::system_clock::time_point timestamp; // 当前时间
     
     float total_voltage = 0.0f;      // 总电压 (V)
@@ -45,6 +45,6 @@ public:
     std::vector<BatteryPack> getHistory() const;
     
 private:
-    BatteryPack latest;
-    std::vector<BatteryPack> history;
+    BatteryPack latest;                 // 当前最新的电池数据
+    std::vector<BatteryPack> history;   // 存放历史记录的
 };

@@ -168,7 +168,7 @@ void BMSParser::udpReceiveLoop(int port) {
     }
 }
 
-// 解析外部发来的UDP数据
+// 解析外部发来的UDP数据 (拆包)
 BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
 
     BatteryPack pack;
