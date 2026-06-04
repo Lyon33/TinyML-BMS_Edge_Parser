@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(EV_BMS_Z03 VERSION 1.0 LANGUAGES CXX)
+project(EV_BMS_TinyML VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,18 +22,17 @@ file(GLOB SOURCES
 )
 
 # 生成可执行文件
-add_executable(bms_parser ${SOURCES})
+add_executable(bms_TinyML_parser ${SOURCES})
 
 # 链接库（后续需要可以加 pthread、rt 等）
-target_link_libraries(bms_parser PRIVATE Threads::Threads)
+target_link_libraries(bms_TinyML_parser PRIVATE Threads::Threads)
 
 # 编译选项
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(bms_parser PRIVATE -Wall -Wextra -O2)
+    target_compile_options(bms_TinyML_parser PRIVATE -Wall -Wextra -O2)
 endif()
 
 # 安装（可选）
-install(TARGETS bms_parser DESTINATION bin)
+install(TARGETS bms_TinyML_parser DESTINATION bin)
 
-message(STATUS "✅ EV BMS Parser 项目配置完成！")
-message(STATUS "   JSON库已包含 | UDP模块已支持")
+message(STATUS "✅ TinyML_BMS_Parser 项目配置完成！")

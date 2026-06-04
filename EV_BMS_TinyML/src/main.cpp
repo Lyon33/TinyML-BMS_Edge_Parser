@@ -48,10 +48,15 @@ int main() {
 
     std::cout << "开始运行... (模拟数据 + UDP接收同时进行)\n" << std::endl;
 
+    auto next_wake = std::chrono::steady_clock::now();
     while (g_running) {
         // 模拟器生成数据
         BatteryPack rawData = simulator.generateFrame();    // 生成模拟数据
         BatteryPack processed = parser.parseFrame(rawData); // 解析处理
+        
+        parser.updateBatteryData(processed);                // 更新到管理器
+                                                            
+        parser.runTinyMLInference(processed);
         logger.writeFrame(processed);                       // 记录日志
 
         // 每25帧打印一次模拟数据
@@ -62,11 +67,16 @@ int main() {
                 << "SOH: " << processed.soh << "% | "
                 << "电压: " << processed.total_voltage << "V | "
                 << "电流: " << processed.total_current << "A | "
-                << "续航: " << (int)processed.estimated_range << "km" << std::endl;
+                << "续航: " << (int)processed.estimated_range << "km |"
+                << "历史记录数：" << parser.getHistoryData().size() << std::endl;
         }
 
         frameCount++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));    //休息200ms
+
+        // 定时唤醒
+        next_wake += std::chrono::milliseconds(50);
+        std::this_thread::sleep_until(next_wake);
+        /* std::this_thread::sleep_for(std::chrono::milliseconds(50));    //20Hz */ 
     }
 
     parser.stopUdpReceiver();       // 退出前停止UDP
