@@ -62,7 +62,8 @@ private:
     std::mutex data_mutex;                  // 互斥锁，保证线程安全
 
     std::atomic<uint64_t> received_packets{0};
-    std::atomic<uint64_t> last_heartbeat{0};
+    /* std::atomic<uint64_t> last_heartbeat{0}; */
+    std::chrono::steady_clock::time_point last_heartbeat;
     const uint64_t HEARTBEAT_TIMEOUT_MS = 5000;
 
     void udpReceiveLoop(int port);

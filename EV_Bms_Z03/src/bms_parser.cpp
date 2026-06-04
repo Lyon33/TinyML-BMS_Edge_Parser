@@ -18,6 +18,7 @@
 #include <chrono>
 
 BMSParser::BMSParser() {
+        last_heartbeat = std::chrono::steady_clock::now();
         // 可以在这里注册一些默认处理规则
 }
 
@@ -152,12 +153,14 @@ void BMSParser::udpReceiveLoop(int port) {
     socklen_t slen = sizeof(sender);
     uint64_t packet_count = 0;
     auto last_print = std::chrono::steady_clock::now();
+    /* auto last_heartbeat = std::chrono::steady_clock::now(); */
 
     while (udp_running) {
         ssize_t len = recvfrom(udp_socket, buffer, sizeof(buffer), 0, (sockaddr*)&sender, &slen);
 
         if (len > 0) {              // 如果收到数据
             packet_count++;
+            last_heartbeat = std::chrono::steady_clock::now();
             BatteryPack pack = parseUdpData(buffer, len);   // 解析收到的二进制数据
             BatteryPack processed = parseFrame(pack);       // 处理数据
 
@@ -167,15 +170,25 @@ void BMSParser::udpReceiveLoop(int port) {
                 auto duration = std::chrono::duration_cast<std::chrono::seconds>
                     (now - last_print).count();
                 std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " 
-                          << (8.0 / (duration > 0 ? duration : 1)) << "包/秒" << std::endl;
+                          << (8.0 / (duration > 0 ? duration : 1)) << "包/秒 | 来源: "
+                          <<  inet_ntoa(sender.sin_addr) << std::endl;
                 last_print = now;
             }
         }
-        else if{len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            std::cerr << "[UDP错误] 接收失败: " << strerror(errno) << std::endl;}
+        else if(len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            std::cerr << "[UDP错误] 接收失败: " << strerror(errno) << std::endl;
+        }
 
+        //心跳超时检测
+        if (packet_count > 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::seconds>
+                (now - last_heartbeat).count() > 8) {
+                std::cout << "[UDP警告] 心跳超时，可能数据源已断开" << std::endl;
+            }
+        }
         // 防止CPU 100%
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        /* std::this_thread::sleep_for(std::chrono::milliseconds(10)); */
     }
 }
 
