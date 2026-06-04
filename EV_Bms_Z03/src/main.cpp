@@ -48,6 +48,7 @@ int main() {
 
     std::cout << "开始运行... (模拟数据 + UDP接收同时进行)\n" << std::endl;
 
+    auto next_wake = std::chrono::steady_clock::now();
     while (g_running) {
         // 模拟器生成数据
         BatteryPack rawData = simulator.generateFrame();    // 生成模拟数据
@@ -70,7 +71,11 @@ int main() {
         }
 
         frameCount++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));    //休息200ms
+
+        // 定时唤醒
+        next_wake += std::chrono::milliseconds(50);
+        std::this_thread::sleep_until(next_wake);
+        /* std::this_thread::sleep_for(std::chrono::milliseconds(50));    //20Hz */ 
     }
 
     parser.stopUdpReceiver();       // 退出前停止UDP

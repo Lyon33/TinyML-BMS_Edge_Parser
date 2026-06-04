@@ -159,7 +159,7 @@ void BMSParser::udpReceiveLoop(int port) {
     sockaddr_in sender{};
     socklen_t slen = sizeof(sender);
     uint64_t packet_count = 0;
-    auto last_print = std::chrono::steady_clock::now();
+    /* auto last_print = std::chrono::steady_clock::now(); */
     /* auto last_heartbeat = std::chrono::steady_clock::now(); */
 
     while (udp_running) {
@@ -172,14 +172,27 @@ void BMSParser::udpReceiveLoop(int port) {
             BatteryPack pack = parseUdpData(buffer, len);   // 解析收到的二进制数据
             BatteryPack processed = parseFrame(pack);       // 处理数据
 
-            // 打印统计信息(每8包打印一次)
-            if(packet_count % 8 == 0){
-                auto now = std::chrono::steady_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::seconds>
-                    (now - last_print).count();
-                std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " 
-                          << (8.0 / (duration > 0 ? duration : 1)) << "包/秒 | 来源: "
-                          << ip << std::endl;
+            /* // 打印统计信息(每8包打印一次) */
+            /* if(packet_count % 8 == 0){ */
+            /*     auto now = std::chrono::steady_clock::now(); */
+            /*     auto duration = std::chrono::duration_cast<std::chrono::seconds> */
+            /*         (now - last_print).count(); */
+            /*     std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " */ 
+            /*               << (8.0 / (duration > 0 ? duration : 1)) << "包/秒 | 来源: " */
+            /*               << ip << std::endl; */
+            /*     last_print = now; */
+            /* } */
+            // 打印统计信息（按时间，不再按包）
+            static auto last_print = std::chrono::steady_clock::now();
+            auto now = std::chrono::steady_clock::now();
+
+            if (std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count() >= 1) {
+                std::cout << "[UDP统计] 已接收 "
+                    << packet_count << " 包 | 速率 ≈ "
+                    << packet_count << " 包/秒 | 来源: "
+                    << ip << std::endl;
+
+                packet_count = 0;
                 last_print = now;
             }
         }
