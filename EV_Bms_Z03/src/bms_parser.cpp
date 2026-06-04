@@ -35,11 +35,18 @@ BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
     auto faults = detectFaults(processed);  //检查有没有故障
     processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
 
-    // 计算续航
+    // 更合理的续航计算
     if (processed.soh > 0.0f) {
-        processed.estimated_range = 36.0f * (processed.soh / 100.0f) * 6.8f;
+
+        float soh_factor = processed.soh / 100.0f;
+        float soc_factor = processed.soc / 100.0f;
+        // 满电续航 =  原始510km * 当前SOH比例 * 衰减系数
+        float full_rang = 510.0f * soh_factor * 0.92f;
+
+        // 根据SOC做轻微动态调整（更真实）
+        processed.estimated_range = full_rang * soc_factor;
     }
-    return processed;                       // 返回处理后的数据
+    return processed;       // 返回处理后的数据
 }
 
 bool BMSParser::loadProtocolConfig(const std::string& configPath) {
@@ -160,6 +167,7 @@ void BMSParser::udpReceiveLoop(int port) {
 
         if (len > 0) {              // 如果收到数据
             packet_count++;
+            std::string ip = inet_ntoa(sender.sin_addr);
             last_heartbeat = std::chrono::steady_clock::now();
             BatteryPack pack = parseUdpData(buffer, len);   // 解析收到的二进制数据
             BatteryPack processed = parseFrame(pack);       // 处理数据
@@ -171,7 +179,7 @@ void BMSParser::udpReceiveLoop(int port) {
                     (now - last_print).count();
                 std::cout << "[UDP统计] 已接收 " << packet_count << " 包 | 速率 ≈ " 
                           << (8.0 / (duration > 0 ? duration : 1)) << "包/秒 | 来源: "
-                          <<  inet_ntoa(sender.sin_addr) << std::endl;
+                          << ip << std::endl;
                 last_print = now;
             }
         }
