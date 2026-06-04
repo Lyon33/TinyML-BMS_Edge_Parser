@@ -206,13 +206,21 @@ BatteryPack BMSParser::parseUdpData(const uint8_t* buffer, size_t length) {
     BatteryPack pack;
     pack.timestamp = std::chrono::system_clock::now();
 
-    if (length >= 32) {
-        pack.total_voltage = *(float*)(buffer + 0);
-        pack.total_current = *(float*)(buffer + 4);
-        pack.soc = *(float*)(buffer + 8);
-        pack.soh = *(float*)(buffer + 12);
-        pack.max_temperature = *(float*)(buffer + 16);
-        pack.estimated_range = *(float*)(buffer + 20);
+    //最少需要 6 个float
+    constexpr size_t KMinSize = 6 * sizeof(float);
+    if (length >= KMinSize) {
+        auto read_float = [&](size_t offset) -> float{
+            float value;
+            //把buffer里offset开始的4个字节，原样复制到value里
+            std::memcpy(&value, buffer + offset, sizeof(float));
+            return value;
+        };
+        pack.total_voltage    = read_float(0);  //读取电压
+        pack.total_current    = read_float(4);  //读取电流
+        pack.soc              = read_float(8);  //读取剩余电量%
+        pack.soh              = read_float(12); //读取电池健康读%
+        pack.max_temperature  = read_float(16); //读取最高温度
+        pack.estimated_range  = read_float(20); //读取剩余续航
     } else {
         pack.total_voltage = 320.0f;
         pack.total_current = -30.0f;
