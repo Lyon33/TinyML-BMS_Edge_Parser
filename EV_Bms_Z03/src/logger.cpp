@@ -30,6 +30,7 @@ void Logger::writeFrame(const BatteryPack& pack) {
          << pack.max_temperature << "," << pack.estimated_range << ","
          << pack.charging_status << ",";
 
+    // 记录这一刻的故障码，一个一个写进文件并用；隔开
     for (const auto& fault : pack.faults) {
         file << fault << ";";
     }
