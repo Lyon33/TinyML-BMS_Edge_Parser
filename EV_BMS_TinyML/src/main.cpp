@@ -13,6 +13,7 @@
 #include <thread>
 #include <chrono>
 #include <iomanip>
+#include <fstream>
 #include <csignal>
 #include <atomic>
 
@@ -38,6 +39,12 @@ int main() {
         return 1;
     };
 
+    /* if(!parser.loadTinyMLModel("../models/bms_predict.tflite")) */
+    /* { */
+    /*     std::cerr << "❌ TinyML模型加载失败，程序退出！" << std::endl; */
+    /*     return 1; */
+    /* }; */
+
     DataSimulator simulator;            // 创建模拟器
     Logger logger("bms_log.csv");       // 创建日志记录器
 
@@ -52,11 +59,11 @@ int main() {
     while (g_running) {
         // 模拟器生成数据
         BatteryPack rawData = simulator.generateFrame();    // 生成模拟数据
-        BatteryPack processed = parser.parseFrame(rawData); // 解析处理
+        BatteryPack processed = parser.parseFrame(rawData); // BMS 解析
         
-        parser.updateBatteryData(processed);                // 更新到管理器
+        parser.updateBatteryData(processed);                // 更新电池状态
                                                             
-        parser.runTinyMLInference(processed);
+        parser.runTinyMLInference(processed);               // 模型推理
         logger.writeFrame(processed);                       // 记录日志
 
         // 每25帧打印一次模拟数据

@@ -46,6 +46,9 @@ public:
     void stopUdpReceiver();
     bool isUdpRunning() const;
 
+    // CAN 接口
+    bool startCanReceiver(const std::string& canInterface = "can0");
+    void stopCanReceiver();
     //新增CAN 协议解析
     BatteryPack parseCanFrame(const uint8_t* canData, uint8_t dlc, uint32_t canId);
 
@@ -54,6 +57,9 @@ public:
 
     // 新增：模拟TinyML推理（展示AI部署能力）
     float runTinyMLInference(const BatteryPack& pack);
+
+    // 初始化模型（项目启动时调用一次）
+    bool loadTinyMLModel(const std::string& modelPath);
 
 private:
     // 内部存储自定义解析规则
@@ -77,4 +83,6 @@ private:
 
     void udpReceiveLoop(int port);
     BatteryPack parseUdpData(const uint8_t* buffer, size_t length);
+
+    bool hasRealModel = false;
 };
