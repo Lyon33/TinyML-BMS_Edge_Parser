@@ -14,6 +14,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <span>
 
 class BMSParser {
 public:
@@ -59,7 +60,8 @@ private:
     std::atomic<bool> udp_running{false};   // 原子变量，控制线程是否运行
     int udp_socket = -1;
     std::thread udp_thread;                 // UDP接收线程
-    std::mutex data_mutex;                  // 互斥锁，保证线程安全
+    // mutable for const methods
+    mutable std::mutex data_mutex;          // 互斥锁，保证线程安全
 
     std::atomic<uint64_t> received_packets{0};
     /* std::atomic<uint64_t> last_heartbeat{0}; */
@@ -67,5 +69,5 @@ private:
     const uint64_t HEARTBEAT_TIMEOUT_MS = 5000;
 
     void udpReceiveLoop(int port);
-    BatteryPack parseUdpData(const uint8_t* buffer, size_t length);
+    BatteryPack parseUdpData(std::span<const uint8_t> buffer);
 };

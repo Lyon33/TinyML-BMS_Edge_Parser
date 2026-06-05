@@ -18,7 +18,7 @@
 
 std::atomic<bool> g_running{true};
 
-void signalHandler(int signum) {
+void signalHandler(int) {
     std::cout << "\n\n接收到终止信号，正在优雅退出..." << std::endl;
     g_running = false;
 }

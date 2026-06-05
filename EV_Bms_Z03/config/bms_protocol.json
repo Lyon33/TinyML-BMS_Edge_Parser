@@ -11,5 +11,19 @@
         "soc": { "unit": "%", "scale": 1.0  },
         "soh": { "unit": "%", "scale": 1.0  },
         "max_temp": { "unit": "°C", "scale": 1.0  }
+
+    },
+    "simulator": {
+        "soh_start": 57.0,
+        "base_voltage": 320.0,
+        "voltage_fluctuation": 8.0,
+        "soc_start": 75.0,
+        "estimated_range": 235.0,
+        "max_cell_voltage": 3.65,
+        "min_cell_voltage": 3.28,
+        "max_temperature": 42.5,
+        "min_temperature": 28.0,
+        "cells": 96
+
     }
 }

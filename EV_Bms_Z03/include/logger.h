@@ -21,5 +21,5 @@ public:
 
 private:
     std::ofstream file;
-    bool first_write = true;
+    static bool first_write;
 };

@@ -10,6 +10,7 @@
 #include <iostream>
 #include <iomanip>
 
+bool Logger::first_write = true;
 Logger::Logger(const std::string& filename) {
     file.open(filename, std::ios::app);     // 打开CSV文件（以追加模式）
     if (first_write) {
