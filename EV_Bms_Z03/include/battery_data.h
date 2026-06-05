@@ -28,6 +28,7 @@ struct BatteryPack {                 // 电池包的数据
     
     float max_cell_voltage = 0.0f;   //最高单体电压
     float min_cell_voltage = 0.0f;   //最低单体电压
+    float temperature = 0.0f;
     float max_temperature = 0.0f;
     float min_temperature = 0.0f;
     

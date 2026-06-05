@@ -31,6 +31,7 @@ private:
     float base_voltage = 320.0f;
     float voltage_fluctuation = 8.0f;
     float soc_start = 75.0f;
+    float real_soc = 100.0f;    // 新增真实 SOC 状态
     float estimated_range_base = 235.0f;
     float max_cell_v = 3.65f;
     float min_cell_v = 3.28f;

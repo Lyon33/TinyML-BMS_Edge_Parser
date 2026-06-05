@@ -36,17 +36,6 @@ BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
     auto faults = detectFaults(processed);  //检查有没有故障
     processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
 
-    // 更合理的续航计算
-    if (processed.soh > 0.0f) {
-
-        float soh_factor = processed.soh / 100.0f;
-        float soc_factor = processed.soc / 100.0f;
-        // 满电续航 =  原始510km * 当前SOH比例 * 衰减系数
-        float full_rang = 510.0f * soh_factor * 0.92f;
-
-        // 根据SOC做轻微动态调整（更真实）
-        processed.estimated_range = full_rang * soc_factor;
-    }
     return processed;       // 返回处理后的数据
 }
 

@@ -17,9 +17,11 @@ DataSimulator::DataSimulator() {
     /*     setDegradationTrend(57.0f); */
     if(loadConfig()){
         setDegradationTrend(current_soh);
+        real_soc = 100.0f;      // 从满电开始
     }else{
         std::cout << "⚠️ 模拟器配置加载失败，使用默认值" << std::endl;
         setDegradationTrend(57.0f);
+        real_soc = 100.0f;
     }
 }
 
@@ -63,67 +65,60 @@ bool DataSimulator::loadConfig(const std::string& configPath) {
     return false;
 }
 
-/* BatteryPack DataSimulator::generateFrame() { */
-/*     BatteryPack pack; */
-/*     pack.timestamp = std::chrono::system_clock::now(); */
-
-/*     frame_count++; */
-
-/*     // 模拟你的车真实数据 */
-/*     pack.total_voltage = 320.0f + (std::sin(frame_count * 0.1f) * 8.0f);  // 312-328V 波动 */
-/*     pack.total_current = (frame_count % 50 < 20) ? -45.0f : 8.0f;        // 模拟充放电 */
-
-/*     pack.soc = 75.0f - (frame_count % 100) * 0.6f;                       // SOC缓慢变化 */
-/*     pack.soh = current_soh - (frame_count / 500) * 0.02f;                // 缓慢衰减 */
-
-/*     pack.max_cell_voltage = 3.65f; */
-/*     pack.min_cell_voltage = 3.28f; */
-/*     pack.max_temperature = 42.5f;                                         // 珠海夏天温度 */
-/*     pack.min_temperature = 28.0f; */
-
-/*     pack.estimated_range = 235.0f;                                        // 你的真实续航 */
-
-/*     pack.charging_status = (pack.total_current < 0) ? "SlowCharging" : "Discharging"; */
-
-/*     // 模拟96串电池（常见LFP） */
-/*     pack.cells.resize(96); */
-/*     for (int i = 0; i < 96; ++i) { */
-/*         pack.cells[i].id = i + 1; */
-/*         pack.cells[i].voltage = simulateCellVoltage(i); */
-/*         pack.cells[i].temperature = simulateTemperature(i); */
-/*     } */
-
-/*     // 偶尔加入故障 */
-/*     if (frame_count % 180 == 0) { */
-/*         pack.faults.push_back("P0A1F_Cell_OverTemperature"); */
-/*     } */
-
-/*     return pack; */
-/* } */
-
 BatteryPack DataSimulator::generateFrame() {
     BatteryPack pack;
     pack.timestamp = std::chrono::system_clock::now();
 
     frame_count++;
 
-    // 使用JSON配置的参数
-    pack.total_voltage = base_voltage + (std::sin(frame_count * 0.1f) * voltage_fluctuation);
-    pack.total_current = (frame_count % 50 < 20) ? -45.0f : 8.0f;
+    // ========== 1. 真车工况机（负充正放）==========
+    static int phase = 0;      // 0=充电, 1=放电, 2=静置
+    static int phase_timer = 0;
 
-    pack.soc = soc_start - (frame_count % 100) * 0.6f;
-    pack.soh = current_soh - (frame_count / 500) * 0.02f;
+    phase_timer++;
+    if (phase_timer > 400) {   // 约 20 秒换一次工况
+        phase = (phase + 1) % 3;
+        phase_timer = 0;
+    }
+
+    float current = 0.0f;
+    switch (phase) {
+    case 0: current = -7.0f;  break;   // ✅ 你实测的充电电流
+    case 1: current = 12.0f;  break;   // ✅ 推算出的放电电流（10小时用车）
+    case 2: current =  0.0f;  break;   // 静置
+    }
+
+    // ========== 2. 安时积分（真实 SOC）==========
+    float dt = 0.05f;                   // 20Hz
+    float capacity = 37.0f / 320.0f;    // 37kWh / 320V ≈ 115.6Ah
+    float soh = current_soh / 100.0f;
+
+    float delta_soc = (current * dt) / (capacity * soh) * 100.0f;
+    real_soc -= delta_soc;
+    real_soc = std::clamp(real_soc, 0.0f, 100.0f);
+
+    // ========== 3. 电压 ==========
+    float voltage = base_voltage;
+    voltage += (real_soc - 50.0f) * 0.01f; // SOC 越高电压越高
+    voltage += current * 0.05f;             // 负载压降
+    voltage += std::sin(frame_count * 0.1f) * voltage_fluctuation;
+
+    // ========== 4. 填包 ==========
+    pack.total_current = current;
+    pack.total_voltage = voltage;
+    pack.soc = real_soc;
+    pack.soh = current_soh;
+    pack.estimated_range = real_soc * 2.35f;  // 100% → 235km
 
     pack.max_cell_voltage = max_cell_v;
     pack.min_cell_voltage = min_cell_v;
     pack.max_temperature = max_temp;
     pack.min_temperature = min_temp;
 
-    pack.estimated_range = estimated_range_base;
+    pack.charging_status =
+        (current < 0) ? "SlowCharging" : "Discharging";
 
-    pack.charging_status = (pack.total_current < 0) ? "SlowCharging" : "Discharging";
-
-    // 模拟电芯
+    // ========== 5. 电芯 ==========
     pack.cells.resize(num_cells);
     for (int i = 0; i < num_cells; ++i) {
         pack.cells[i].id = i + 1;
@@ -131,10 +126,11 @@ BatteryPack DataSimulator::generateFrame() {
         pack.cells[i].temperature = simulateTemperature(i);
     }
 
-    // 偶尔加入故障
+    // 故障（保留）
     if (frame_count % 180 == 0) {
         pack.faults.push_back("P0A1F_Cell_OverTemperature");
     }
+
     return pack;
 }
 
