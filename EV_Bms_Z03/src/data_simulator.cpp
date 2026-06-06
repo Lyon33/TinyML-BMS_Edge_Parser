@@ -46,6 +46,15 @@ BatteryPack DataSimulator::generateFrame() {
     // 真实工况电流
     float current  = (frame_count % 600 < 300) ? 12.0f : -7.0f;
 
+    // 压差 （300 帧正常，300 帧故障--> 报警)
+    if (frame_count % 600 < 300) {
+        pack.max_cell_voltage = 3.65f;
+        pack.min_cell_voltage = 3.55f; // 正常
+    } else {
+        pack.max_cell_voltage = 3.65f;
+        pack.min_cell_voltage = 3.20f; // 故障
+    }
+
     pack.total_voltage = base_voltage + (std::sin(frame_count * 0.1f) * voltage_fluctuation);
     pack.soh = current_soh;
 
@@ -53,7 +62,6 @@ BatteryPack DataSimulator::generateFrame() {
     pack.soc = std::clamp(pack.soc, 5.0f, 95.0f);
 
     // 只生成物理量，SOC由EKF计算
-    /* pack.total_voltage = base_voltage + (std::sin(frame_count * 0.1f) * voltage_fluctuation); */
     pack.total_current = current;
     pack.max_cell_voltage = max_cell_v;
     pack.min_cell_voltage = min_cell_v;

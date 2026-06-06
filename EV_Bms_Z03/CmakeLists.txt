@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(EV_BMS_Z03 VERSION 1.3 LANGUAGES CXX)
+project(EV_Bms_Z03 VERSION 1.3 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,38 +8,65 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 
+# ==================== 依赖 ====================
 find_package(Threads REQUIRED)
 find_package(spdlog REQUIRED)
 
-# spdlog (header-only for simplicity)
-add_library(spdlog_interface INTERFACE)
-target_include_directories(spdlog_interface INTERFACE ${CMAKE_SOURCE_DIR}/third_party)
-
-# JSON
+# ✅ nlohmann_json（header-only）
 add_library(json_interface INTERFACE)
-target_include_directories(json_interface INTERFACE ${CMAKE_SOURCE_DIR}/third_party/json)
+target_include_directories(json_interface INTERFACE
+    ${CMAKE_SOURCE_DIR}/third_party/json
+)
 
-file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+# ✅ GoogleTest（Homebrew 1.12.1）
+find_package(GTest REQUIRED)
 
-add_executable(bms_parser ${SOURCES})
+# ==================== BMS 核心库 ====================
+file(GLOB SRC_FILES "src/*.cpp")
 
-target_link_libraries(bms_parser PRIVATE Threads::Threads json_interface spdlog::spdlog)
+add_library(bms_core STATIC ${SRC_FILES})
 
-target_include_directories(bms_parser PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(bms_core
+    PRIVATE
+    Threads::Threads
+    spdlog::spdlog
+    json_interface
+)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(bms_parser PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+target_include_directories(bms_core
+    PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+)
 
-# 测试
+# ==================== 主程序 ====================
+add_executable(bms_parser src/main.cpp)
+
+target_link_libraries(bms_parser
+    PRIVATE
+    bms_core
+    json_interface
+)
+
+# ==================== 测试 ====================
 enable_testing()
-file(GLOB TEST_SOURCES "${CMAKE_SOURCE_DIR}/test/*.cpp")
-add_executable(bms_tests ${TEST_SOURCES})
-target_link_libraries(bms_tests PRIVATE Threads::Threads json_interface spdlog::spdlog)
-target_include_directories(bms_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+add_executable(bms_tests
+    test/bms_test.cpp
+)
+
+target_link_libraries(bms_tests
+    PRIVATE
+    bms_core
+    json_interface
+    GTest::gtest
+    GTest::gtest_main
+    Threads::Threads
+)
+
 add_test(NAME BMSTests COMMAND bms_tests)
 
-# 复制配置
-file(COPY ${CMAKE_SOURCE_DIR}/config DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/..)
+# ==================== 配置 ====================
+file(COPY ${CMAKE_SOURCE_DIR}/config
+    DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/..)
 
-message(STATUS "🚀 EV BMS Z03 v1.3 工业级配置完成！")
+message(STATUS "🚀 EV BMS Z03 v1.3 (GTest 1.12.1 Local, Rock Solid)")

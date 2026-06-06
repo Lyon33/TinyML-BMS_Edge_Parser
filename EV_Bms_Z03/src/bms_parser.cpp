@@ -186,10 +186,50 @@ void BMSParser::validateData(BatteryPack& pack) {
 // 故障诊断函数（专门检查电芯之间是否平衡）
 std::vector<std::string> BMSParser::detectFaults(const BatteryPack& pack) {
     std::vector<std::string> faults;
-    float voltage_diff = pack.max_cell_voltage - pack.min_cell_voltage;
-    if (voltage_diff > 0.8f) {              // 压差大于0.8V，记录故障
-        faults.push_back("P0A02_Cell_Voltage_Imbalance");
+
+    // ==================== 电压故障 ====================
+    if (pack.total_voltage > 420.0f) {
+        faults.emplace_back("P0A01_OverVoltage");
     }
+    if (pack.total_voltage < 250.0f) {
+        faults.emplace_back("P0A03_UnderVoltage");
+    }
+
+    // ==================== 电芯压差 ====================
+    static int fault_counter = 0;
+    float delta_v = pack.max_cell_voltage - pack.min_cell_voltage;
+
+    if (delta_v > 0.8f) {
+        faults.emplace_back("P0A02_Cell_Voltage_Imbalance_Critical");
+        fault_counter = 0;  // 严重故障直接报，不清零
+                            
+    }else if(delta_v > 0.3f){
+        fault_counter++;
+        if(fault_counter >=5){  //连续5 帧，报警
+            faults.emplace_back("P0A02_Cell_Voltage_Imbalance_Warning");
+        }
+    }else {
+        fault_counter = 0;      // 恢复正常
+    }
+
+    // ==================== 过流（新增） ====================
+    if (std::abs(pack.total_current) > 200.0f) {
+        faults.emplace_back("P0A04_OverCurrent");
+    }
+
+    // ==================== 温度故障 ====================
+    if (pack.max_temperature > 60.0f) {
+        faults.emplace_back("P0A05_OverTemperature");
+    }
+    if (pack.min_temperature < -20.0f) {
+        faults.emplace_back("P0A06_UnderTemperature");
+    }
+
+    // ==================== 温差过大（新增） ====================
+    if (pack.max_temperature - pack.min_temperature > 15.0f) {
+        faults.emplace_back("P0A07_Temperature_Imbalance");
+    }
+
     return faults;
 }
 
