@@ -41,7 +41,7 @@ private:
     int frame_count = 0;
 
     // 从JSON 加载模拟器参数（工业级可配置）
-    bool loadConfig(const std::string& configPath = "../config/bms_protocol.json");;
+    bool loadConfig(const std::string& configPath = "../config/bms_protocol.json");
 
     // 模拟电压波动
     float simulateCellVoltage(int cell_id);

@@ -4,7 +4,7 @@
 class SocEKF {
 public:
     SocEKF(float capacity, float soh, float dt);
-    float update(float current, float voltage, float temperature = 25.0f);;
+    float update(float current, float voltage, float temperature = 25.0f);
 
 private:
     OcTable ocTable;

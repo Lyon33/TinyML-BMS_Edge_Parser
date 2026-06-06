@@ -9,6 +9,7 @@
 #pragma once
 #include "battery_data.h"
 #include "data_simulator.h"
+#include "constants.h"
 #include <functional>
 #include <unordered_map>
 #include <thread>
@@ -31,7 +32,7 @@ public:
     std::vector<std::string> detectFaults(const BatteryPack& pack);
 
     // 新增：转换为JSON字符串（用于后续扩展）
-    std::string toJson(const BatteryPack& pack);
+    std::string toJson(const BatteryPack& pack) const;
 
     // JSON 配置
     bool loadProtocolConfig(const std::string& configPath);

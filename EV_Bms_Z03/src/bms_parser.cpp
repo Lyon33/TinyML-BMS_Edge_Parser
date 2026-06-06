@@ -6,6 +6,9 @@
  **************************************************************************/
 #include "bms_parser.h"
 #include "json.hpp"
+#include "constants.h"
+#include "spdlog/spdlog.h"
+#include "config_manager.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -18,6 +21,7 @@
 #include <unistd.h>
 #include <chrono>
 
+
 BMSParser::BMSParser() {
         last_heartbeat = std::chrono::steady_clock::now();
         // 可以在这里注册一些默认处理规则
@@ -27,62 +31,155 @@ BMSParser::~BMSParser(){
         stopUdpReceiver();
 }
 
+const BatteryPack& BMSParser::getLatestData() const {
+    std::lock_guard<std::mutex> lock(data_mutex);
+    return batteryData.getLatest();
+}
+
+std::vector<BatteryPack> BMSParser::getHistoryData() const {
+    std::lock_guard<std::mutex> lock(data_mutex);
+    return batteryData.getHistory();
+}
+
+// =============== toJson =================
+/* std::string BMSParser::toJson(const BatteryPack& pack) const { */
+/*     nlohmann::json j; */
+/*     j["timestamp"] = std::chrono::system_clock::to_time_t(pack.timestamp); */
+/*     j["soc"] = pack.soc; */
+/*     j["soh"] = pack.soh; */
+/*     j["total_voltage"] = pack.total_voltage; */
+/*     j["total_current"] = pack.total_current; */
+/*     j["estimated_range"] = pack.estimated_range; */
+/*     j["charging_status"] = pack.charging_status; */
+/*     j["faults"] = pack.faults; */
+/*     return j.dump(2);       //  缩进2格 */
+/* } */
+
+// ====================== 友好可读输出（替换原来的 toJson） ======================
+std::string BMSParser::toJson(const BatteryPack& pack) const {
+    std::ostringstream oss;
+
+    auto time_t = std::chrono::system_clock::to_time_t(pack.timestamp);
+    auto tm = *std::localtime(&time_t);
+
+    // 工业级 static_cast<int> 转换(约束数据，边界管理)
+    int range_km = static_cast<int>(std::round(pack.estimated_range));
+    range_km = std::clamp(range_km, 0, 999);
+
+    // ============== 时间戳对齐 ==================
+    oss << "["
+        << std::setfill('0')
+        << std::setw(2) << tm.tm_hour << ":"
+        << std::setw(2) << tm.tm_min << ":"
+        << std::setw(2) << tm.tm_sec
+        << "]";
+
+    // ===== 数值：切回空格填充 =====
+    oss << std::setfill(' ');
+    
+    // ===== SOC / SOH =====
+    oss << "SOC: "
+        << std::setw(6) << std::fixed << std::setprecision(2) << pack.soc << "% | "
+
+        << "SOH: "
+        << std::setw(5) << std::fixed << std::setprecision(2) << pack.soh << "% | "
+
+        // ===== 电压 / 电流 =====
+        << "电压: "
+        << std::setw(6) << std::fixed << std::setprecision(1) << pack.total_voltage << "V | "
+
+        << "电流: "
+        << std::setw(6) << std::fixed << std::setprecision(1) << pack.total_current << "A | "
+
+        // ===== 温度 =====
+        << "温度: "
+        << std::setw(5) << std::fixed << std::setprecision(1) << pack.max_temperature << "℃ | "
+
+        // ===== 续航 =====
+        << "续航: "
+        << std::setw(3) << range_km << "km";
+
+    // ===== 状态 =====
+    if (!pack.charging_status.empty()) {
+        oss << " | " << std::setw(12) << std::left << pack.charging_status;
+    }
+
+    // ===== 故障 =====
+    if (!pack.faults.empty()) {
+        oss << " | ⚠️ " << pack.faults[0];
+    }
+
+    return oss.str();
+}
+
+bool BMSParser::loadProtocolConfig(const std::string& configPath) {
+        return ConfigManager::instance().load(configPath);
+}
+
 // ========================= 核心解析（完全保留你的原始实现） =========================
 BatteryPack BMSParser::parseFrame(const BatteryPack& rawData) {
     BatteryPack processed = rawData;    //先复制一份原始数据
 
-    validateData(processed);            // 检查数据是否合理
-
+    validateData(processed);            // 先校验数据（此时SOC可能还未更新）
     auto faults = detectFaults(processed);  //检查有没有故障
     processed.faults.insert(processed.faults.end(), faults.begin(), faults.end());
+
+    // 合法性保护（只限制范围，不破坏值）
+    processed.soc = std::clamp(processed.soc, 0.0f, 100.0f);
+    processed.soh = std::clamp(processed.soh, 0.0f, 100.0f);
+
+    // 计算续航
+    if (processed.soh > 0.0f) {
+        float soh_factor = processed.soh / 100.0f;
+        float soc_factor = processed.soc / 100.0f;
+        float full_range = 510.0f * soh_factor * 0.92f;
+        processed.estimated_range = full_range * soc_factor;
+    }
 
     return processed;       // 返回处理后的数据
 }
 
-bool BMSParser::loadProtocolConfig(const std::string& configPath) {
-    std::ifstream file(configPath);
-    if (!file.is_open()) {
-        std::cerr << "❌ 无法打开配置文件: " << configPath << std::endl;
-        return false;
-    }
-    try {
-        nlohmann::json j;
-        file >> j;
+/* bool BMSParser::loadProtocolConfig(const std::string& configPath) { */
+/*     std::ifstream file(configPath); */
+/*     if (!file.is_open()) { */
+/*         spdlog << "❌ 无法打开配置文件: " << configPath << std::endl; */
+/*         return false; */
+/*     } */
+/*     try { */
+/*         nlohmann::json j; */
+/*         file >> j; */
 
-        std::cout << "✅ 已成功加载配置协议: " << configPath << std::endl;
+/*         spdlog << "✅ 已成功加载配置协议: " << configPath << std::endl; */
 
-        std::string vehicle = j.value("vehicle_model", std::string("未知车型"));
-        std::cout << "   车辆型号: " << vehicle << std::endl;
+/*         std::string vehicle = j.value("vehicle_model", std::string("未知车型")); */
+/*         spdlog << "   车辆型号: " << vehicle << std::endl; */
 
-        int capacity = j.value("nominal_capacity_kwh", 0);
-        std::cout << "   电池容量: " << capacity << "kWh" << std::endl;
+/*         int capacity = j.value("nominal_capacity_kwh", 0); */
+/*         spdlog << "   电池容量: " << capacity << "kWh" << std::endl; */
 
-        int range_km = j.value("original_range_km", 0);
-        std::cout << "   标称续航: " << range_km << "km" << std::endl;
+/*         int range_km = j.value("original_range_km", 0); */
+/*         spdlog << "   标称续航: " << range_km << "km" << std::endl; */
 
-        return true;
+/*         return true; */
 
-    } catch (const std::exception& e) {
-        std::cerr << "❌ 配置加载失败: " << e.what() << std::endl;
-        return false;
-    }
-}
+/*     } catch (const std::exception& e) { */
+/*         spdlog << "❌ 配置加载失败: " << e.what() << std::endl; */
+/*         return false; */
+/*     } */
+/* } */
 
 std::string BMSParser::getVehicleInfo() const {
     return "合创Z03 510km版 | 实际容量: 36kWh | SOH≈57%";
 }
 
-// 故障检查函数, 用来提前发现危险数据避免后面用错误数据做计算
+// 延迟 SOC 检查
 void BMSParser::validateData(BatteryPack& pack) {
     pack.faults.clear();
-    if (pack.total_voltage < 200.0f || pack.total_voltage > 420.0f) {
+    if (pack.total_voltage < bms::VOLTAGE_MIN || pack.total_voltage > bms::VOLTAGE_MAX) {
         pack.faults.push_back("P0A00_Voltage_OutOfRange");
     }
-    if (pack.max_temperature > 55.0f) {
+    if (pack.max_temperature > bms::TEMP_MAX) {
         pack.faults.push_back("P0A1F_OverTemperature");
-    }
-    if (pack.soc < 8.0f) {
-        pack.faults.push_back("Low_SOC_Warning");
     }
 }
 
@@ -106,7 +203,7 @@ bool BMSParser::startUdpReceiver(int port){
 
     udp_socket = socket(AF_INET, SOCK_DGRAM, 0);    // 创建一个“收邮件的信箱”
     if(udp_socket < 0){
-        std::cerr << "❌ 创建UDP Socket失败" << std::endl;
+        spdlog::error("❌ 创建UDP Socket失败");
         return false;
     }
 
@@ -121,7 +218,7 @@ bool BMSParser::startUdpReceiver(int port){
     addr.sin_addr.s_addr = INADDR_ANY;
 
     if(bind(udp_socket, (sockaddr*)&addr, sizeof(addr)) < 0){
-        std::cerr << "❌ UDP绑定端口 " << port << " 失败" << std::endl;
+        spdlog::error("UDP绑定端口 {} 失败", port);
         close(udp_socket);
         udp_socket = -1;
         return false;
@@ -130,7 +227,7 @@ bool BMSParser::startUdpReceiver(int port){
     udp_running = true;
     // 启动一个新线程专门接收数据
     udp_thread = std::thread(&BMSParser::udpReceiveLoop, this, port);
-    std::cout << "✅ 工业级UDP接收器已启动，监听端口: " << port << std::endl;
+    spdlog::info("✅ 工业级UDP接收器已启动，监听端口: {}", port);
     return true;
 }
 
@@ -146,7 +243,7 @@ void BMSParser::stopUdpReceiver(){
     if (udp_thread.joinable()) {
         udp_thread.join();
     }
-    std::cout << "🛑 UDP接收器已停止" << std::endl;
+    spdlog::info("🛑 UDP接收器已停止");
 }
 
 bool BMSParser::isUdpRunning() const {
@@ -183,10 +280,7 @@ void BMSParser::udpReceiveLoop(int port) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::seconds>(now - last_print).count() >= 1) {
                 std::string ip = inet_ntoa(sender.sin_addr);
-                std::cout << "[UDP统计] 已接收 "
-                    << packet_count << " 包 | 速率 ≈ "
-                    << packet_count << " 包/秒 | 来源: "
-                    << ip << std::endl;
+                spdlog::info("[UDP统计] 已接收 {} 包 ｜速率 = {} 包/秒 ｜来源：{}", packet_count, packet_count, ip);
 
                 packet_count = 0;
                 last_print = now;
@@ -194,7 +288,7 @@ void BMSParser::udpReceiveLoop(int port) {
         }
         else if(len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
             if(udp_running){    // 只有还在运行时打印错误
-                std::cerr << "[UDP错误] 接收失败: " << strerror(errno) << std::endl;
+                spdlog::error("UDP接收失败：{}", strerror(errno));
             }
         }
 
@@ -203,7 +297,7 @@ void BMSParser::udpReceiveLoop(int port) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::seconds>
                 (now - last_heartbeat).count() > 8) {
-                std::cout << "[UDP警告] 心跳超时，可能数据源已断开" << std::endl;
+                spdlog::info("[UDP警告] 心跳超时，可能数据源已断开");
             }
         }
         // 降低cpu 占用
@@ -243,6 +337,7 @@ BatteryPack BMSParser::parseUdpData(std::span<const uint8_t> buffer) {
     }
 
     pack.charging_status = (pack.total_current < 0) ? "Charging" : "Discharging";
+
     return pack;
 }
 
@@ -251,14 +346,3 @@ void BMSParser::updateBatteryData(const BatteryPack& pack) {
     std::lock_guard<std::mutex> lock(data_mutex);
     batteryData.update(pack);
 }
-
-const BatteryPack& BMSParser::getLatestData() const {
-    std::lock_guard<std::mutex> lock(data_mutex);
-    return batteryData.getLatest();
-}
-
-std::vector<BatteryPack> BMSParser::getHistoryData() const {
-    std::lock_guard<std::mutex> lock(data_mutex);
-    return batteryData.getHistory();
-}
-
